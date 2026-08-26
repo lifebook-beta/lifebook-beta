@@ -1,8 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
-  runApp(const LifeBookBeta());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    runApp(const LifeBookBeta());
+  } catch (e) {
+    runApp(FirebaseErrorApp(error: e.toString()));
+  }
 }
+
+// ------------------------------------------------------------
+// FIREBASE ERROR
+// ------------------------------------------------------------
+
+class FirebaseErrorApp extends StatelessWidget {
+  final String error;
+
+  const FirebaseErrorApp({
+    super.key,
+    required this.error,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF071525),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Firebase initialization failed.\n\n$error',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// APP
+// ------------------------------------------------------------
 
 class LifeBookBeta extends StatelessWidget {
   const LifeBookBeta({super.key});
@@ -20,11 +70,336 @@ class LifeBookBeta extends StatelessWidget {
           seedColor: const Color(0xFF287BEA),
           brightness: Brightness.dark,
         ),
+        useMaterial3: true,
       ),
-      home: const MainScreen(),
+      home: const AuthGate(),
     );
   }
 }
+
+// ------------------------------------------------------------
+// AUTH GATE
+// ------------------------------------------------------------
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF071525),
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF071525),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Authentication error:\n\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.data != null) {
+          return const MainScreen();
+        }
+
+        return const LoginPage();
+      },
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// LOGIN
+// ------------------------------------------------------------
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool loading = false;
+  bool obscurePassword = true;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> login() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      showMessage('Email এবং Password দুটোই দিতে হবে।');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      showMessage(authError(e));
+    } catch (e) {
+      showMessage('Login failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> createAccount() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      showMessage('Email এবং Password দুটোই দিতে হবে।');
+      return;
+    }
+
+    if (password.length < 6) {
+      showMessage('Password কমপক্ষে 6 characters হতে হবে।');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      showMessage(authError(e));
+    } catch (e) {
+      showMessage('Account creation failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  String authError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'Email address ঠিক নেই।';
+
+      case 'user-not-found':
+        return 'এই Email দিয়ে কোনো account নেই।';
+
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Email অথবা Password ভুল।';
+
+      case 'email-already-in-use':
+        return 'এই Email দিয়ে আগে থেকেই account আছে।';
+
+      case 'weak-password':
+        return 'Password আরও শক্তিশালী দিন।';
+
+      case 'network-request-failed':
+        return 'Internet connection check করুন।';
+
+      default:
+        return e.message ?? 'Authentication failed.';
+    }
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF071525),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Container(
+                  width: 82,
+                  height: 82,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF112A45),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF2381F5),
+                      width: 1.5,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'LB',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                const Text(
+                  'LifeBook Beta',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Sign in to continue',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
+                ),
+
+                const SizedBox(height: 35),
+
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    filled: true,
+                    fillColor: const Color(0xFF112A45),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscurePassword = !obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF112A45),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: loading ? null : login,
+                    child: loading
+                        ? const SizedBox(
+                            width: 23,
+                            height: 23,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Login',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: OutlinedButton(
+                    onPressed: loading ? null : createAccount,
+                    child: const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// MAIN SCREEN
+// ------------------------------------------------------------
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -122,6 +497,8 @@ class HomePage extends StatelessWidget {
                 child: const Text(
                   'LB',
                   style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -142,13 +519,14 @@ class HomePage extends StatelessWidget {
               icon: const Icon(Icons.search, size: 29),
             ),
             IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.menu, size: 30),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+              icon: const Icon(Icons.logout, size: 27),
             ),
           ],
         ),
 
-        // Stories
         SliverToBoxAdapter(
           child: SizedBox(
             height: 145,
@@ -169,7 +547,6 @@ class HomePage extends StatelessWidget {
           ),
         ),
 
-        // Create post
         SliverToBoxAdapter(
           child: Container(
             margin: const EdgeInsets.fromLTRB(18, 8, 18, 14),
@@ -211,7 +588,6 @@ class HomePage extends StatelessWidget {
           ),
         ),
 
-        // Posts
         const SliverToBoxAdapter(
           child: PostCard(
             username: 'Sahad Sarkar',
