@@ -1,13 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await Firebase.initializeApp();
-
+void main() {
   runApp(const LifeBookBeta());
 }
 
@@ -22,352 +15,29 @@ class LifeBookBeta extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF071525),
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1976FF),
+          seedColor: const Color(0xFF287BEA),
           brightness: Brightness.dark,
         ),
-        useMaterial3: true,
       ),
-      home: const AuthGate(),
+      home: const MainScreen(),
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        if (snapshot.hasData) {
-          return const HomePage();
-        }
-
-        return const LoginPage();
-      },
-    );
-  }
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-// =========================
-// LOGIN
-// =========================
-
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
-
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  bool loading = false;
-
-  Future<void> login() async {
-    if (emailController.text.trim().isEmpty ||
-        passwordController.text.isEmpty) {
-      showMessage('Email and password required.');
-      return;
-    }
-
-    setState(() {
-      loading = true;
-    });
-
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text,
-      );
-    } on FirebaseAuthException catch (e) {
-      showMessage(e.message ?? 'Login failed.');
-    } catch (e) {
-      showMessage('Something went wrong.');
-    }
-
-    if (mounted) {
-      setState(() {
-        loading = false;
-      });
-    }
-  }
-
-  void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const CircleAvatar(
-                  radius: 42,
-                  child: Text(
-                    'LB',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'LifeBook Beta',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Connect. Share. Discover.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: loading ? null : login,
-                    child: loading
-                        ? const CircularProgressIndicator()
-                        : const Text('Login'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const RegisterPage(),
-                      ),
-                    );
-                  },
-                  child: const Text('Create a new account'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =========================
-// REGISTER
-// =========================
-
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
-
-  @override
-  State<RegisterPage> createState() => _RegisterPageState();
-}
-
-class _RegisterPageState extends State<RegisterPage> {
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  bool loading = false;
-
-  Future<void> register() async {
-    final name = nameController.text.trim();
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-
-    if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      showMessage('Please fill all fields.');
-      return;
-    }
-
-    if (password.length < 6) {
-      showMessage('Password must be at least 6 characters.');
-      return;
-    }
-
-    setState(() {
-      loading = true;
-    });
-
-    try {
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = credential.user;
-
-      if (user != null) {
-        await user.updateDisplayName(name);
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'uid': user.uid,
-          'name': name,
-          'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    } on FirebaseAuthException catch (e) {
-      showMessage(e.message ?? 'Registration failed.');
-    } catch (e) {
-      showMessage('Something went wrong.');
-    }
-
-    if (mounted) {
-      setState(() {
-        loading = false;
-      });
-    }
-  }
-
-  void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full name',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  onPressed: loading ? null : register,
-                  child: loading
-                      ? const CircularProgressIndicator()
-                      : const Text('Create Account'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =========================
-// HOME
-// =========================
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
+class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
-  final pages = const [
-    FeedPage(),
+  final List<Widget> pages = const [
+    HomePage(),
     FriendsPage(),
     MessagesPage(),
     AlertsPage(),
@@ -377,14 +47,18 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: pages[currentIndex],
+      body: SafeArea(
+        child: pages[currentIndex],
+      ),
       bottomNavigationBar: NavigationBar(
+        backgroundColor: const Color(0xFF202127),
         selectedIndex: currentIndex,
         onDestinationSelected: (index) {
           setState(() {
             currentIndex = index;
           });
         },
+        indicatorColor: const Color(0xFF3E4A69),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -417,80 +91,190 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// =========================
-// FEED
-// =========================
+// ------------------------------------------------------------
+// HOME
+// ------------------------------------------------------------
 
-class FeedPage extends StatelessWidget {
-  const FeedPage({super.key});
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            floating: true,
-            title: const Text(
-              'LifeBook Beta',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          backgroundColor: const Color(0xFF071525),
+          pinned: true,
+          titleSpacing: 18,
+          title: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white70,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'LB',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
-            actions: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.search),
-              ),
-              IconButton(
-                onPressed: () {
-                  FirebaseAuth.instance.signOut();
-                },
-                icon: const Icon(Icons.menu),
+              const SizedBox(width: 12),
+              const Text(
+                'LifeBook Beta',
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          const CircleAvatar(
-                            child: Icon(Icons.person),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              user?.displayName != null
-                                  ? 'Hello, ${user!.displayName}!'
-                                  : "What's on your mind?",
-                            ),
-                          ),
-                          const Icon(Icons.camera_alt_outlined),
-                        ],
-                      ),
+          actions: [
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.search, size: 29),
+            ),
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.menu, size: 30),
+            ),
+          ],
+        ),
+
+        // Stories
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 145,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 12,
+              ),
+              scrollDirection: Axis.horizontal,
+              children: const [
+                StoryItem(title: 'Your Story'),
+                StoryItem(title: 'Friends'),
+                StoryItem(title: 'Creators'),
+                StoryItem(title: 'Trending'),
+                StoryItem(title: 'News'),
+              ],
+            ),
+          ),
+        ),
+
+        // Create post
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF112A45),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Color(0xFF31558F),
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    "What's on your mind?",
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Colors.white70,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const PostCard(
-                    name: 'LifeBook Beta',
-                    text: 'Welcome to the new social experience.',
-                    icon: Icons.public,
+                ),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.camera_alt_outlined,
+                    size: 29,
                   ),
-                  const PostCard(
-                    name: 'LifeBook Beta',
-                    text: 'Connect with friends and discover new creators.',
-                    icon: Icons.people,
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Posts
+        const SliverToBoxAdapter(
+          child: PostCard(
+            username: 'Sahad Sarkar',
+            text: 'Enjoying the beautiful nature!',
+            imageIcon: Icons.landscape,
+          ),
+        ),
+
+        const SliverToBoxAdapter(
+          child: PostCard(
+            username: 'LifeBook Beta',
+            text: 'Welcome to the new social experience.',
+            imageIcon: Icons.public,
+          ),
+        ),
+
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 20),
+        ),
+      ],
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// STORY
+// ------------------------------------------------------------
+
+class StoryItem extends StatelessWidget {
+  final String title;
+
+  const StoryItem({
+    super.key,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 105,
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFF0D3770),
+            ),
+            child: const Icon(
+              Icons.person,
+              size: 38,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Colors.white70,
             ),
           ),
         ],
@@ -499,70 +283,153 @@ class FeedPage extends StatelessWidget {
   }
 }
 
+// ------------------------------------------------------------
+// POST
+// ------------------------------------------------------------
+
 class PostCard extends StatelessWidget {
-  final String name;
+  final String username;
   final String text;
-  final IconData icon;
+  final IconData imageIcon;
 
   const PostCard({
     super.key,
-    required this.name,
+    required this.username,
     required this.text,
-    required this.icon,
+    required this.imageIcon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(
-                  child: Icon(Icons.person),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF112A45),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 29,
+                backgroundColor: Color(0xFF31558F),
+                child: Icon(
+                  Icons.person,
+                  size: 31,
+                  color: Colors.white,
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  name,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  username,
                   style: const TextStyle(
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Spacer(),
-                const Icon(Icons.more_horiz),
-              ],
+              ),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.more_horiz),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 17,
+              color: Colors.white,
             ),
-            const SizedBox(height: 18),
+          ),
+
+          const SizedBox(height: 14),
+
+          Container(
+            width: double.infinity,
+            height: 245,
+            decoration: BoxDecoration(
+              color: const Color(0xFF153A62),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Center(
+              child: Icon(
+                imageIcon,
+                size: 75,
+                color: const Color(0xFF2381F5),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              PostButton(
+                icon: Icons.thumb_up_alt_outlined,
+                text: 'Like',
+                onTap: () {},
+              ),
+              PostButton(
+                icon: Icons.comment_outlined,
+                text: 'Comment',
+                onTap: () {},
+              ),
+              PostButton(
+                icon: Icons.share_outlined,
+                text: 'Share',
+                onTap: () {},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PostButton extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final VoidCallback onTap;
+
+  const PostButton({
+    super.key,
+    required this.icon,
+    required this.text,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 8,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: const Color(0xFFAFC8FF),
+            ),
+            const SizedBox(width: 8),
             Text(
               text,
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              height: 170,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: const Color(0xFF12345A),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFFAFC8FF),
               ),
-              child: Icon(
-                icon,
-                size: 64,
-                color: Colors.blueAccent,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Text('♡  Like'),
-                Text('💬  Comment'),
-                Text('↗  Share'),
-              ],
             ),
           ],
         ),
@@ -571,62 +438,339 @@ class PostCard extends StatelessWidget {
   }
 }
 
-// =========================
-// OTHER PAGES
-// =========================
+// ------------------------------------------------------------
+// FRIENDS
+// ------------------------------------------------------------
 
 class FriendsPage extends StatelessWidget {
   const FriendsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Friends',
-        style: TextStyle(fontSize: 28),
+    return SimplePage(
+      title: 'Friends',
+      icon: Icons.people,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: const [
+          FriendTile(name: 'Alex Johnson'),
+          FriendTile(name: 'Rahim Ahmed'),
+          FriendTile(name: 'Nadia Khan'),
+          FriendTile(name: 'Tanvir Hasan'),
+        ],
       ),
     );
   }
 }
+
+class FriendTile extends StatelessWidget {
+  final String name;
+
+  const FriendTile({
+    super.key,
+    required this.name,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF112A45),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 26,
+            backgroundColor: Color(0xFF31558F),
+            child: Icon(Icons.person),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          OutlinedButton(
+            onPressed: () {},
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// MESSAGES
+// ------------------------------------------------------------
 
 class MessagesPage extends StatelessWidget {
   const MessagesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Messages',
-        style: TextStyle(fontSize: 28),
+    return SimplePage(
+      title: 'Messages',
+      icon: Icons.chat,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: const [
+          MessageTile(
+            name: 'Alex Johnson',
+            message: 'Hey! How are you?',
+          ),
+          MessageTile(
+            name: 'Rahim Ahmed',
+            message: 'Nice post!',
+          ),
+          MessageTile(
+            name: 'Nadia Khan',
+            message: 'See you tomorrow.',
+          ),
+        ],
       ),
     );
   }
 }
+
+class MessageTile extends StatelessWidget {
+  final String name;
+  final String message;
+
+  const MessageTile({
+    super.key,
+    required this.name,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 8,
+        horizontal: 4,
+      ),
+      leading: const CircleAvatar(
+        radius: 27,
+        backgroundColor: Color(0xFF31558F),
+        child: Icon(Icons.person),
+      ),
+      title: Text(
+        name,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      subtitle: Text(message),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {},
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// ALERTS
+// ------------------------------------------------------------
 
 class AlertsPage extends StatelessWidget {
   const AlertsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Alerts',
-        style: TextStyle(fontSize: 28),
+    return SimplePage(
+      title: 'Alerts',
+      icon: Icons.notifications,
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: const [
+          AlertTile(
+            title: 'New friend request',
+            subtitle: 'You have a new friend request.',
+          ),
+          AlertTile(
+            title: 'Post liked',
+            subtitle: 'Someone liked your post.',
+          ),
+          AlertTile(
+            title: 'Welcome to LifeBook',
+            subtitle: 'Thanks for joining LifeBook Beta.',
+          ),
+        ],
       ),
     );
   }
 }
+
+class AlertTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const AlertTile({
+    super.key,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF112A45),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            backgroundColor: Color(0xFF31558F),
+            child: Icon(Icons.notifications),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// EARNING
+// ------------------------------------------------------------
 
 class EarningPage extends StatelessWidget {
   const EarningPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Earning',
-        style: TextStyle(fontSize: 28),
+    return SimplePage(
+      title: 'Earning',
+      icon: Icons.monetization_on,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF112A45),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Column(
+                children: [
+                  Icon(
+                    Icons.account_balance_wallet,
+                    size: 65,
+                    color: Color(0xFF2381F5),
+                  ),
+                  SizedBox(height: 15),
+                  Text(
+                    'Your Balance',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    '৳ 0.00',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text(
+                  'Start Earning',
+                  style: TextStyle(fontSize: 17),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// SIMPLE PAGE
+// ------------------------------------------------------------
+
+class SimplePage extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  const SimplePage({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 30,
+                color: const Color(0xFF4B91FF),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: child),
+      ],
     );
   }
 }
