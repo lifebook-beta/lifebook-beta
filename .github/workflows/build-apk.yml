@@ -27,44 +27,71 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Find Flutter project
-        id: flutter_project
+      # Check Flutter project
+      - name: Check Flutter project
         shell: bash
         run: |
           set -e
 
-          PROJECT_DIR=$(find . -name pubspec.yaml \
-            -not -path './.dart_tool/*' \
-            -not -path './build/*' \
-            | head -n 1)
-
-          if [ -z "$PROJECT_DIR" ]; then
+          if [ ! -f "pubspec.yaml" ]; then
             echo "ERROR: pubspec.yaml not found!"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$PROJECT_DIR")
-
-          if [ "$PROJECT_DIR" = "." ]; then
-            PROJECT_DIR="."
+          if [ ! -d "lib" ]; then
+            echo "ERROR: lib folder not found!"
+            exit 1
           fi
 
-          echo "Flutter project found at: $PROJECT_DIR"
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Flutter project found."
+
+      # Generate Android project files if missing
+      - name: Generate Android platform
+        shell: bash
+        run: |
+          set -e
+
+          if [ ! -d "android" ]; then
+            echo "Android folder not found."
+            echo "Generating Android platform files..."
+
+            flutter create \
+              --platforms=android \
+              --project-name=lifebook_beta \
+              .
+
+          else
+            echo "Android folder already exists."
+          fi
+
+      # Setup Firebase configuration
+      - name: Setup Firebase
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f "google-services.json" ]; then
+            mkdir -p android/app
+            cp "google-services.json" "android/app/google-services.json"
+            echo "Firebase google-services.json copied."
+          elif [ -f "google-services (1).json" ]; then
+            mkdir -p android/app
+            cp "google-services (1).json" "android/app/google-services.json"
+            echo "Firebase google-services.json copied."
+          else
+            echo "WARNING: google-services.json not found."
+          fi
 
       - name: Flutter Pub Get
         shell: bash
         run: |
           set -e
-          cd "${{ steps.flutter_project.outputs.project_dir }}"
           flutter pub get
 
       - name: Build Release APK
         shell: bash
         run: |
           set -e
-          cd "${{ steps.flutter_project.outputs.project_dir }}"
-
           flutter build apk --release
 
       - name: Show APK SHA-1 and SHA-256
@@ -72,7 +99,7 @@ jobs:
         run: |
           set -e
 
-          APK="${{ steps.flutter_project.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk"
+          APK="build/app/outputs/flutter-apk/app-release.apk"
 
           if [ ! -f "$APK" ]; then
             echo "ERROR: APK not found!"
@@ -84,19 +111,13 @@ jobs:
           echo "========================================"
           sha1sum "$APK"
 
-          echo ""
           echo "========================================"
           echo "APK SHA-256"
           echo "========================================"
           sha256sum "$APK"
 
-          echo ""
-          echo "APK location:"
-          echo "$APK"
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LifeBook-Beta-APK
-          path: ${{ steps.flutter_project.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          path: build/app/outputs/flutter-apk/app-release.apk
