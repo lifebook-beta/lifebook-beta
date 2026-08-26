@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -34,22 +34,24 @@ jobs:
 
           echo "Checking Flutter project..."
 
-          test -f pubspec.yaml || {
+          if [ ! -f "pubspec.yaml" ]; then
             echo "ERROR: pubspec.yaml not found!"
             exit 1
-          }
+          fi
 
-          test -f lib/main.dart || {
+          if [ ! -f "lib/main.dart" ]; then
             echo "ERROR: lib/main.dart not found!"
             exit 1
-          }
+          fi
 
-          echo "Flutter project found."
+          echo "Flutter project found successfully."
 
       - name: Generate Android platform
         shell: bash
         run: |
           set -e
+
+          echo "Checking Android platform..."
 
           if [ ! -d "android" ]; then
             echo "Android folder not found."
@@ -66,6 +68,21 @@ jobs:
 
           echo "Android platform ready."
 
+      - name: Fix Android Package Name
+        shell: bash
+        run: |
+          set -e
+
+          echo "Setting Android package name..."
+
+          sed -i 's/applicationId = ".*"/applicationId = "com.lifebookbeta.app"/' android/app/build.gradle.kts
+
+          sed -i 's/namespace = ".*"/namespace = "com.lifebookbeta.app"/' android/app/build.gradle.kts
+
+          echo "Android package name fixed."
+
+          grep -E 'namespace|applicationId' android/app/build.gradle.kts
+
       - name: Setup Firebase
         shell: bash
         run: |
@@ -73,16 +90,27 @@ jobs:
 
           echo "Setting up Firebase..."
 
-          if [ ! -f "google-services.json" ]; then
-            echo "ERROR: google-services.json not found in repository root!"
-            exit 1
-          fi
-
           mkdir -p android/app
 
-          cp google-services.json android/app/google-services.json
+          if [ -f "google-services.json" ]; then
 
-          echo "Firebase configuration copied."
+            cp "google-services.json" \
+              "android/app/google-services.json"
+
+            echo "Firebase configuration copied."
+
+          elif [ -f "google-services (1).json" ]; then
+
+            cp "google-services (1).json" \
+              "android/app/google-services.json"
+
+            echo "Firebase configuration copied."
+
+          else
+
+            echo "WARNING: google-services.json not found."
+
+          fi
 
       - name: Configure Google Services plugin
         shell: bash
@@ -91,108 +119,35 @@ jobs:
 
           echo "Configuring Google Services plugin..."
 
-          python3 <<'PY'
-          from pathlib import Path
+          if [ -f "android/settings.gradle.kts" ]; then
 
-          root = Path("android")
+            if ! grep -q "com.google.gms.google-services" android/settings.gradle.kts; then
 
-          # -------------------------------------------------
-          # 1. Configure root Gradle file
-          # -------------------------------------------------
+              sed -i '/plugins {/a\    id("com.google.gms.google-services") version "4.4.2" apply false' android/settings.gradle.kts
 
-          root_gradle = root / "build.gradle"
+            fi
 
-          if root_gradle.exists():
-              text = root_gradle.read_text()
+          fi
 
-              if "com.google.gms:google-services" not in text:
-                  if "dependencies {" in text:
-                      text = text.replace(
-                          "dependencies {",
-                          """dependencies {
-                              classpath 'com.google.gms:google-services:4.4.4'""",
-                          1
-                      )
-                  else:
-                      text = """buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+          if [ -f "android/app/build.gradle.kts" ]; then
 
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.7.3'
-                  classpath 'com.google.gms:google-services:4.4.4'
-              }
-          }
+            if ! grep -q "com.google.gms.google-services" android/app/build.gradle.kts; then
 
-          """ + text
+              sed -i '/plugins {/a\    id("com.google.gms.google-services")' android/app/build.gradle.kts
 
-                  root_gradle.write_text(text)
+            fi
 
-          # -------------------------------------------------
-          # 2. Configure app Gradle file
-          # -------------------------------------------------
+          fi
 
-          app_gradle = root / "app" / "build.gradle"
-
-          if app_gradle.exists():
-              text = app_gradle.read_text()
-
-              if "com.google.gms.google-services" not in text:
-                  text += """
-
-          apply plugin: 'com.google.gms.google-services'
-          """
-
-                  app_gradle.write_text(text)
-
-          # -------------------------------------------------
-          # 3. Configure Kotlin DSL files if present
-          # -------------------------------------------------
-
-          settings_kts = root / "settings.gradle.kts"
-          app_kts = root / "app" / "build.gradle.kts"
-
-          if settings_kts.exists():
-              text = settings_kts.read_text()
-
-              if "com.google.gms.google-services" not in text:
-                  marker = 'plugins {'
-
-                  if marker in text:
-                      text = text.replace(
-                          marker,
-                          """plugins {
-              id("com.google.gms.google-services") version "4.4.4" apply false""",
-                          1
-                      )
-
-                      settings_kts.write_text(text)
-
-          if app_kts.exists():
-              text = app_kts.read_text()
-
-              if 'id("com.google.gms.google-services")' not in text:
-                  marker = "plugins {"
-
-                  if marker in text:
-                      text = text.replace(
-                          marker,
-                          """plugins {
-              id("com.google.gms.google-services")""",
-                          1
-                      )
-
-                      app_kts.write_text(text)
-
-          print("Google Services configuration completed.")
-          PY
+          echo "Google Services plugin configured."
 
       - name: Flutter Clean
         shell: bash
         run: |
           set -e
+
+          echo "Cleaning Flutter project..."
+
           flutter clean
 
       - name: Flutter Pub Get
@@ -204,7 +159,7 @@ jobs:
 
           flutter pub get
 
-          echo "Dependencies installed."
+          echo "Dependencies installed successfully."
 
       - name: Build Release APK
         shell: bash
