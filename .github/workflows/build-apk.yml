@@ -2,14 +2,14 @@ name: Build LifeBook Beta APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
+    name: Build Flutter APK
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: LifeBookBeta
 
     steps:
       - name: Checkout repository
@@ -19,40 +19,84 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.29.0"
           channel: stable
           cache: true
 
+      - name: Find Flutter project
+        id: flutter_project
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT_DIR=$(find . -name pubspec.yaml \
+            -not -path './.dart_tool/*' \
+            -not -path './build/*' \
+            | head -n 1)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: pubspec.yaml not found!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT_DIR")
+
+          if [ "$PROJECT_DIR" = "." ]; then
+            PROJECT_DIR="."
+          fi
+
+          echo "Flutter project found at: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
       - name: Flutter Pub Get
-        run: flutter pub get
+        shell: bash
+        run: |
+          set -e
+          cd "${{ steps.flutter_project.outputs.project_dir }}"
+          flutter pub get
 
       - name: Build Release APK
-        run: flutter build apk --release
+        shell: bash
+        run: |
+          set -e
+          cd "${{ steps.flutter_project.outputs.project_dir }}"
+
+          flutter build apk --release
 
       - name: Show APK SHA-1 and SHA-256
+        shell: bash
         run: |
-          APK=$(find build/app/outputs/flutter-apk -name "*.apk" | head -n 1)
+          set -e
 
-          echo "=========================================="
-          echo "APK FOUND:"
+          APK="${{ steps.flutter_project.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK not found!"
+            exit 1
+          fi
+
+          echo "========================================"
+          echo "APK SHA-1"
+          echo "========================================"
+          sha1sum "$APK"
+
+          echo ""
+          echo "========================================"
+          echo "APK SHA-256"
+          echo "========================================"
+          sha256sum "$APK"
+
+          echo ""
+          echo "APK location:"
           echo "$APK"
-          echo "=========================================="
-
-          echo ""
-          echo "========== SHA-1 / SHA-256 =========="
-
-          keytool -printcert -jarfile "$APK"
-
-          echo ""
-          echo "=========================================="
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LifeBook-Beta-APK
-          path: LifeBookBeta/build/app/outputs/flutter-apk/*.apk
+          path: ${{ steps.flutter_project.outputs.project_dir }}/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
