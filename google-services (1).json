@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "134422208922",
+    "project_id": "lifebook-beta-2002",
+    "storage_bucket": "lifebook-beta-2002.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134422208922:android:61391ad4bacc64cdfa5a23",
+        "android_client_info": {
+          "package_name": "com.lifebookbeta.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgiM3gYnr_UZthASaqysYhzPlgm3CY5mc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
