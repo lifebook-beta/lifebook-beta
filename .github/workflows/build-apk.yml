@@ -27,65 +27,75 @@ jobs:
           channel: stable
           cache: true
 
-      # Check Flutter project
       - name: Check Flutter project
         shell: bash
         run: |
           set -e
 
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "ERROR: pubspec.yaml not found!"
-            exit 1
-          fi
+          test -f pubspec.yaml
+          test -f lib/main.dart
 
-          if [ ! -d "lib" ]; then
-            echo "ERROR: lib folder not found!"
-            exit 1
-          fi
+          echo "Flutter project OK"
 
-          echo "Flutter project found."
-
-      # Generate Android project files if missing
       - name: Generate Android platform
         shell: bash
         run: |
           set -e
 
           if [ ! -d "android" ]; then
-            echo "Android folder not found."
-            echo "Generating Android platform files..."
-
             flutter create \
               --platforms=android \
               --project-name=lifebook_beta \
               .
-
-          else
-            echo "Android folder already exists."
           fi
 
-      # Setup Firebase configuration
+          echo "Android platform ready"
+
+      - name: Configure Android Kotlin
+        shell: bash
+        run: |
+          set -e
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/settings.gradle")
+          s = p.read_text()
+
+          s = s.replace(
+              "id 'org.jetbrains.kotlin.android' version '2.1.0' apply false",
+              "id 'org.jetbrains.kotlin.android' version '2.1.20' apply false"
+          )
+
+          p.write_text(s)
+          PY
+
+          echo "Kotlin configuration checked"
+
       - name: Setup Firebase
         shell: bash
         run: |
           set -e
 
+          mkdir -p android/app
+
           if [ -f "google-services.json" ]; then
-            mkdir -p android/app
-            cp "google-services.json" "android/app/google-services.json"
-            echo "Firebase google-services.json copied."
+            cp "google-services.json" \
+              "android/app/google-services.json"
+
           elif [ -f "google-services (1).json" ]; then
-            mkdir -p android/app
-            cp "google-services (1).json" "android/app/google-services.json"
-            echo "Firebase google-services.json copied."
+            cp "google-services (1).json" \
+              "android/app/google-services.json"
+
           else
-            echo "WARNING: google-services.json not found."
+            echo "WARNING: google-services.json not found"
           fi
 
       - name: Flutter Pub Get
         shell: bash
         run: |
           set -e
+          flutter clean
           flutter pub get
 
       - name: Build Release APK
@@ -101,10 +111,7 @@ jobs:
 
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: APK not found!"
-            exit 1
-          fi
+          test -f "$APK"
 
           echo "========================================"
           echo "APK SHA-1"
