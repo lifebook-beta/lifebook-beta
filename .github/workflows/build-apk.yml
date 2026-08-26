@@ -11,16 +11,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Find and extract project ZIP
         run: |
-          mkdir project
-          unzip -q LifeBook_Beta_Demo_APK_BuildReady.zip -d project
-          cd project
-          if [ -d LifeBookBeta ]; then
-            shopt -s dotglob
-            mv LifeBookBeta/* .
-            rmdir LifeBookBeta
+          set -e
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found in repository."
+            exit 1
           fi
+
+          echo "Found ZIP: $ZIP_FILE"
+
+          mkdir -p project
+          unzip -q "$ZIP_FILE" -d project
+
+          echo "Extracted files:"
+          find project -maxdepth 3 -type f | head -100
+
+      - name: Find Flutter project
+        run: |
+          set -e
+
+          PUBSPEC=$(find project -name pubspec.yaml -type f | head -n 1)
+
+          if [ -z "$PUBSPEC" ]; then
+            echo "ERROR: pubspec.yaml not found."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PUBSPEC")
+
+          echo "Flutter project found at: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -28,19 +52,19 @@ jobs:
           channel: stable
 
       - name: Generate Android project
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter create . --platforms=android
 
       - name: Install packages
-        working-directory: project
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
-      - name: Build APK
-        working-directory: project
+      - name: Build LifeBook Beta APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter build apk --release --target lib/main_demo.dart
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LifeBook-Beta-Demo-APK
-          path: project/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
