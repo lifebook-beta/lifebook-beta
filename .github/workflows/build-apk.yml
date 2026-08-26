@@ -7,19 +7,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: LifeBookBeta
+
     steps:
-      # 1. GitHub repository checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      # 3. Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -27,15 +28,12 @@ jobs:
           channel: stable
           cache: true
 
-      # 4. Get Flutter packages
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # 5. Build Release APK
       - name: Build Release APK
         run: flutter build apk --release
 
-      # 6. Find APK and show SHA-1 + SHA-256
       - name: Show APK SHA-1 and SHA-256
         run: |
           APK=$(find build/app/outputs/flutter-apk -name "*.apk" | head -n 1)
@@ -53,9 +51,8 @@ jobs:
           echo ""
           echo "=========================================="
 
-      # 7. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LifeBook-Beta-APK
-          path: build/app/outputs/flutter-apk/*.apk
+          path: LifeBookBeta/build/app/outputs/flutter-apk/*.apk
