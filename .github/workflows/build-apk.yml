@@ -8,63 +8,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      # 1. GitHub repository checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIP
-        run: |
-          set -e
+      # 2. Setup Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No ZIP file found in repository."
-            exit 1
-          fi
-
-          echo "Found ZIP: $ZIP_FILE"
-
-          mkdir -p project
-          unzip -q "$ZIP_FILE" -d project
-
-          echo "Extracted files:"
-          find project -maxdepth 3 -type f | head -100
-
-      - name: Find Flutter project
-        run: |
-          set -e
-
-          PUBSPEC=$(find project -name pubspec.yaml -type f | head -n 1)
-
-          if [ -z "$PUBSPEC" ]; then
-            echo "ERROR: pubspec.yaml not found."
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$PUBSPEC")
-
-          echo "Flutter project found at: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Set up Flutter
+      # 3. Setup Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.29.0"
           channel: stable
+          cache: true
 
-      - name: Generate Android project
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter create . --platforms=android
-
-      - name: Install packages
-        working-directory: ${{ env.PROJECT_DIR }}
+      # 4. Get Flutter packages
+      - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Build LifeBook Beta APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter build apk --release --target lib/main_demo.dart
+      # 5. Build Release APK
+      - name: Build Release APK
+        run: flutter build apk --release
 
+      # 6. Find APK and show SHA-1 + SHA-256
+      - name: Show APK SHA-1 and SHA-256
+        run: |
+          APK=$(find build/app/outputs/flutter-apk -name "*.apk" | head -n 1)
+
+          echo "=========================================="
+          echo "APK FOUND:"
+          echo "$APK"
+          echo "=========================================="
+
+          echo ""
+          echo "========== SHA-1 / SHA-256 =========="
+
+          keytool -printcert -jarfile "$APK"
+
+          echo ""
+          echo "=========================================="
+
+      # 7. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LifeBook-Beta-Demo-APK
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: LifeBook-Beta-APK
+          path: build/app/outputs/flutter-apk/*.apk
