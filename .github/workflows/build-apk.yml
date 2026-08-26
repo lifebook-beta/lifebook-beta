@@ -1,0 +1,46 @@
+name: Build LifeBook Beta APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          mkdir project
+          unzip -q LifeBook_Beta_Demo_APK_BuildReady.zip -d project
+          cd project
+          if [ -d LifeBookBeta ]; then
+            shopt -s dotglob
+            mv LifeBookBeta/* .
+            rmdir LifeBookBeta
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate Android project
+        working-directory: project
+        run: flutter create . --platforms=android
+
+      - name: Install packages
+        working-directory: project
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: project
+        run: flutter build apk --release --target lib/main_demo.dart
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeBook-Beta-Demo-APK
+          path: project/build/app/outputs/flutter-apk/app-release.apk
