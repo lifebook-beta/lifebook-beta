@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Firebase.initializeApp();
-    runApp(const LifeBookBeta());
-  } catch (e) {
-    runApp(FirebaseErrorApp(error: e.toString()));
-  }
+  await Firebase.initializeApp();
+
+  runApp(const LifeBookBeta());
+}
 }
 
 // ------------------------------------------------------------
