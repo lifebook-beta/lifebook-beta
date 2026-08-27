@@ -1,0 +1,55 @@
+name: Extract Fixed Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract LifeBook Fixed Project
+        run: |
+          set -e
+
+          ZIP=$(find . -maxdepth 1 -type f -name 'LifeBook_Beta_Fixed_Project*.zip' | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "Fixed Project ZIP not found!"
+            exit 1
+          fi
+
+          mkdir -p /tmp/lifebook
+          unzip -o "$ZIP" -d /tmp/lifebook
+
+          ROOT=$(find /tmp/lifebook -name pubspec.yaml -printf '%h\n' | head -n 1)
+
+          if [ -z "$ROOT" ]; then
+            echo "pubspec.yaml not found inside ZIP!"
+            exit 1
+          fi
+
+          cp -R "$ROOT"/. .
+
+          rm -f LifeBook_Beta_Fixed_Project*.zip
+
+          echo "Project extracted successfully."
+          echo "Project files:"
+          ls -la
+
+      - name: Commit extracted project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Extract fixed LifeBook project"
+            git push
+          fi
