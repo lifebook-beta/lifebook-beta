@@ -12,50 +12,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      # 1. Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      # 4. Check project
       - name: Check Flutter project
         shell: bash
         run: |
           set -e
 
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "ERROR: pubspec.yaml not found!"
-            exit 1
-          fi
+          echo "Checking Flutter project..."
 
-          if [ ! -f "lib/main.dart" ]; then
-            echo "ERROR: lib/main.dart not found!"
-            exit 1
-          fi
+          test -f pubspec.yaml
+          test -f lib/main.dart
 
-          echo "Flutter project OK."
+          echo "Flutter project found."
 
-      # 5. Generate Android
       - name: Generate Android platform
         shell: bash
         run: |
           set -e
 
           if [ ! -d "android" ]; then
+            echo "Android folder not found."
             echo "Generating Android platform..."
 
             flutter create \
@@ -66,13 +56,14 @@ jobs:
             echo "Android folder already exists."
           fi
 
-      # 6. Fix Android package name
-      - name: Fix Android Package Name
+      - name: Fix Android Package and MainActivity
         shell: bash
         run: |
           set -e
 
-          echo "Setting Android package name..."
+          PACKAGE="com.lifebookbeta.app"
+
+          echo "Fixing Android package..."
 
           sed -i 's/applicationId = ".*"/applicationId = "com.lifebookbeta.app"/' \
             android/app/build.gradle.kts
@@ -80,11 +71,34 @@ jobs:
           sed -i 's/namespace = ".*"/namespace = "com.lifebookbeta.app"/' \
             android/app/build.gradle.kts
 
-          echo "Package name:"
+          echo ""
+          echo "Searching for MainActivity..."
+
+          MAIN_ACTIVITY=$(find android/app/src/main -type f \
+            \( -name "MainActivity.kt" -o -name "MainActivity.java" \) \
+            | head -n 1)
+
+          if [ -z "$MAIN_ACTIVITY" ]; then
+            echo "ERROR: MainActivity not found!"
+            exit 1
+          fi
+
+          echo "MainActivity found:"
+          echo "$MAIN_ACTIVITY"
+
+          sed -i -E \
+            's/^package .*/package com.lifebookbeta.app/' \
+            "$MAIN_ACTIVITY"
+
+          echo ""
+          echo "MainActivity package:"
+          grep '^package ' "$MAIN_ACTIVITY"
+
+          echo ""
+          echo "Android namespace/applicationId:"
           grep -E 'namespace|applicationId' \
             android/app/build.gradle.kts
 
-      # 7. Setup Firebase
       - name: Setup Firebase
         shell: bash
         run: |
@@ -97,80 +111,32 @@ jobs:
               "android/app/google-services.json"
 
             echo "Firebase configuration copied."
+
+          elif [ -f "google-services (1).json" ]; then
+            cp "google-services (1).json" \
+              "android/app/google-services.json"
+
+            echo "Firebase configuration copied."
+
           else
             echo "ERROR: google-services.json not found!"
             exit 1
           fi
 
-      # 8. Configure Google Services plugin
-      - name: Configure Google Services plugin
-        shell: bash
-        run: |
-          set -e
-
-          echo "Configuring Google Services plugin..."
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          settings = Path("android/settings.gradle.kts")
-          text = settings.read_text()
-
-          if 'com.google.gms.google-services' not in text:
-              text = text.replace(
-                  'plugins {',
-                  '''plugins {
-              id("com.google.gms.google-services") version "4.4.2" apply false'''
-              )
-
-          settings.write_text(text)
-
-          build = Path("android/app/build.gradle.kts")
-          text = build.read_text()
-
-          if 'com.google.gms.google-services' not in text:
-              text = text.replace(
-                  'plugins {',
-                  '''plugins {
-              id("com.google.gms.google-services")'''
-              )
-
-          build.write_text(text)
-
-          print("Google Services plugin configured.")
-          PY
-
-      # 9. Flutter clean
-      - name: Flutter Clean
-        shell: bash
-        run: |
-          set -e
-          flutter clean
-
-      # 10. Pub get
       - name: Flutter Pub Get
         shell: bash
         run: |
           set -e
+
+          flutter clean
           flutter pub get
 
-      # 11. Build APK
       - name: Build Release APK
         shell: bash
         run: |
           set -e
 
-          echo "Building LifeBook Beta APK..."
-
           flutter build apk --release
-
-          echo "APK build completed."
-
-      # 12. SHA fingerprints
-      - name: Show APK SHA-1 and SHA-256
-        shell: bash
-        run: |
-          set -e
 
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
@@ -179,6 +145,7 @@ jobs:
             exit 1
           fi
 
+          echo ""
           echo "========================================"
           echo "LIFEBOOK BETA APK"
           echo "========================================"
@@ -197,7 +164,6 @@ jobs:
 
           echo "========================================"
 
-      # 13. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
