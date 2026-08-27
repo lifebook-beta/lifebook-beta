@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -8,48 +9,6 @@ Future<void> main() async {
 
   runApp(const LifeBookBeta());
 }
-}
-
-// ------------------------------------------------------------
-// FIREBASE ERROR
-// ------------------------------------------------------------
-
-class FirebaseErrorApp extends StatelessWidget {
-  final String error;
-
-  const FirebaseErrorApp({
-    super.key,
-    required this.error,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: Scaffold(
-        backgroundColor: const Color(0xFF071525),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Firebase initialization failed.\n\n$error',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------
-// APP
-// ------------------------------------------------------------
 
 class LifeBookBeta extends StatelessWidget {
   const LifeBookBeta({super.key});
@@ -62,7 +21,6 @@ class LifeBookBeta extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF071525),
-        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF287BEA),
           brightness: Brightness.dark,
@@ -88,30 +46,13 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            backgroundColor: Color(0xFF071525),
             body: Center(
               child: CircularProgressIndicator(),
             ),
           );
         }
 
-        if (snapshot.hasError) {
-          return Scaffold(
-            backgroundColor: const Color(0xFF071525),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Authentication error:\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.data != null) {
+        if (snapshot.hasData) {
           return const MainScreen();
         }
 
@@ -151,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      showMessage('Email এবং Password দুটোই দিতে হবে।');
+      showMessage('Email and password required.');
       return;
     }
 
@@ -166,44 +107,8 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on FirebaseAuthException catch (e) {
       showMessage(authError(e));
-    } catch (e) {
-      showMessage('Login failed: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          loading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> createAccount() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      showMessage('Email এবং Password দুটোই দিতে হবে।');
-      return;
-    }
-
-    if (password.length < 6) {
-      showMessage('Password কমপক্ষে 6 characters হতে হবে।');
-      return;
-    }
-
-    setState(() {
-      loading = true;
-    });
-
-    try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      showMessage(authError(e));
-    } catch (e) {
-      showMessage('Account creation failed: $e');
+    } catch (_) {
+      showMessage('Something went wrong. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -215,27 +120,18 @@ class _LoginPageState extends State<LoginPage> {
 
   String authError(FirebaseAuthException e) {
     switch (e.code) {
-      case 'invalid-email':
-        return 'Email address ঠিক নেই।';
-
-      case 'user-not-found':
-        return 'এই Email দিয়ে কোনো account নেই।';
-
-      case 'wrong-password':
       case 'invalid-credential':
-        return 'Email অথবা Password ভুল।';
-
-      case 'email-already-in-use':
-        return 'এই Email দিয়ে আগে থেকেই account আছে।';
-
-      case 'weak-password':
-        return 'Password আরও শক্তিশালী দিন।';
-
-      case 'network-request-failed':
-        return 'Internet connection check করুন।';
-
+      case 'wrong-password':
+      case 'user-not-found':
+        return 'Invalid email or password.';
+      case 'invalid-email':
+        return 'Please enter a valid email.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many attempts. Try again later.';
       default:
-        return e.message ?? 'Authentication failed.';
+        return e.message ?? 'Login failed.';
     }
   }
 
@@ -250,7 +146,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071525),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -258,29 +153,19 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               children: [
                 Container(
-                  width: 82,
-                  height: 82,
+                  width: 86,
+                  height: 86,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF112A45),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFF2381F5),
-                      width: 1.5,
-                    ),
+                    color: const Color(0xFF153A62),
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'LB',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: const Icon(
+                    Icons.menu_book,
+                    size: 48,
+                    color: Color(0xFF4B91FF),
                   ),
                 ),
-
                 const SizedBox(height: 22),
-
                 const Text(
                   'LifeBook Beta',
                   style: TextStyle(
@@ -288,18 +173,15 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
-                  'Sign in to continue',
+                  'Welcome back',
                   style: TextStyle(
-                    color: Colors.white70,
                     fontSize: 16,
+                    color: Colors.white70,
                   ),
                 ),
-
-                const SizedBox(height: 35),
+                const SizedBox(height: 32),
 
                 TextField(
                   controller: emailController,
@@ -345,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
 
                 SizedBox(
                   width: double.infinity,
@@ -354,35 +236,16 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: loading ? null : login,
                     child: loading
                         ? const SizedBox(
-                            width: 23,
-                            height: 23,
+                            width: 24,
+                            height: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                             ),
                           )
                         : const Text(
                             'Login',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(fontSize: 17),
                           ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: OutlinedButton(
-                    onPressed: loading ? null : createAccount,
-                    child: const Text(
-                      'Create Account',
-                      style: TextStyle(
-                        fontSize: 16,
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -415,6 +278,10 @@ class _MainScreenState extends State<MainScreen> {
     AlertsPage(),
     EarningPage(),
   ];
+
+  Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -478,37 +345,12 @@ class HomePage extends StatelessWidget {
           backgroundColor: const Color(0xFF071525),
           pinned: true,
           titleSpacing: 18,
-          title: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.white70,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'LB',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'LifeBook Beta',
-                style: TextStyle(
-                  fontSize: 23,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          title: const Text(
+            'LifeBook Beta',
+            style: TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           actions: [
             IconButton(
@@ -516,8 +358,8 @@ class HomePage extends StatelessWidget {
               icon: const Icon(Icons.search, size: 29),
             ),
             IconButton(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
+              onPressed: () {
+                FirebaseAuth.instance.signOut();
               },
               icon: const Icon(Icons.logout, size: 27),
             ),
@@ -552,9 +394,9 @@ class HomePage extends StatelessWidget {
               color: const Color(0xFF112A45),
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 28,
                   backgroundColor: Color(0xFF31558F),
                   child: Icon(
@@ -563,8 +405,8 @@ class HomePage extends StatelessWidget {
                     size: 30,
                   ),
                 ),
-                const SizedBox(width: 14),
-                const Expanded(
+                SizedBox(width: 14),
+                Expanded(
                   child: Text(
                     "What's on your mind?",
                     style: TextStyle(
@@ -573,12 +415,9 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.camera_alt_outlined,
-                    size: 29,
-                  ),
+                Icon(
+                  Icons.camera_alt_outlined,
+                  size: 29,
                 ),
               ],
             ),
@@ -705,15 +544,10 @@ class PostCard extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.more_horiz),
-              ),
+              const Icon(Icons.more_horiz),
             ],
           ),
-
           const SizedBox(height: 8),
-
           Text(
             text,
             style: const TextStyle(
@@ -721,9 +555,7 @@ class PostCard extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-
           const SizedBox(height: 14),
-
           Container(
             width: double.infinity,
             height: 245,
@@ -739,9 +571,7 @@ class PostCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
