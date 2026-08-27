@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -28,19 +28,13 @@ jobs:
           cache: true
 
       - name: Check Flutter project
-        shell: bash
         run: |
           set -e
-
-          echo "Checking Flutter project..."
-
           test -f pubspec.yaml
           test -f lib/main.dart
-
           echo "Flutter project found."
 
       - name: Generate Android platform
-        shell: bash
         run: |
           set -e
 
@@ -52,27 +46,40 @@ jobs:
               --platforms=android \
               --project-name=lifebook_beta \
               .
+
           else
             echo "Android folder already exists."
           fi
 
-      - name: Fix Android Package and MainActivity
-        shell: bash
+      - name: Setup Firebase
+        run: |
+          set -e
+
+          mkdir -p android/app
+
+          if [ -f "google-services.json" ]; then
+            cp "google-services.json" \
+              "android/app/google-services.json"
+          else
+            echo "ERROR: google-services.json not found!"
+            exit 1
+          fi
+
+          echo "Firebase configuration copied."
+
+      - name: Fix Android package
         run: |
           set -e
 
           PACKAGE="com.lifebookbeta.app"
 
-          echo "Fixing Android package..."
+          sed -i \
+            's/applicationId = ".*"/applicationId = "com.lifebookbeta.app"/' \
+            android/app/build.gradle.kts || true
 
-          sed -i 's/applicationId = ".*"/applicationId = "com.lifebookbeta.app"/' \
-            android/app/build.gradle.kts
-
-          sed -i 's/namespace = ".*"/namespace = "com.lifebookbeta.app"/' \
-            android/app/build.gradle.kts
-
-          echo ""
-          echo "Searching for MainActivity..."
+          sed -i \
+            's/namespace = ".*"/namespace = "com.lifebookbeta.app"/' \
+            android/app/build.gradle.kts || true
 
           MAIN_ACTIVITY=$(find android/app/src/main -type f \
             \( -name "MainActivity.kt" -o -name "MainActivity.java" \) \
@@ -83,56 +90,19 @@ jobs:
             exit 1
           fi
 
-          echo "MainActivity found:"
-          echo "$MAIN_ACTIVITY"
+          echo "MainActivity: $MAIN_ACTIVITY"
 
           sed -i -E \
             's/^package .*/package com.lifebookbeta.app/' \
             "$MAIN_ACTIVITY"
 
-          echo ""
-          echo "MainActivity package:"
-          grep '^package ' "$MAIN_ACTIVITY"
-
-          echo ""
-          echo "Android namespace/applicationId:"
-          grep -E 'namespace|applicationId' \
-            android/app/build.gradle.kts
-
-      - name: Setup Firebase
-        shell: bash
-        run: |
-          set -e
-
-          mkdir -p android/app
-
-          if [ -f "google-services.json" ]; then
-            cp "google-services.json" \
-              "android/app/google-services.json"
-
-            echo "Firebase configuration copied."
-
-          elif [ -f "google-services (1).json" ]; then
-            cp "google-services (1).json" \
-              "android/app/google-services.json"
-
-            echo "Firebase configuration copied."
-
-          else
-            echo "ERROR: google-services.json not found!"
-            exit 1
-          fi
-
       - name: Flutter Pub Get
-        shell: bash
         run: |
           set -e
-
           flutter clean
           flutter pub get
 
       - name: Build Release APK
-        shell: bash
         run: |
           set -e
 
@@ -145,24 +115,15 @@ jobs:
             exit 1
           fi
 
-          echo ""
           echo "========================================"
           echo "LIFEBOOK BETA APK"
           echo "========================================"
 
-          echo ""
           echo "APK SHA-1:"
           sha1sum "$APK"
 
-          echo ""
           echo "APK SHA-256:"
           sha256sum "$APK"
-
-          echo ""
-          echo "APK location:"
-          echo "$APK"
-
-          echo "========================================"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
